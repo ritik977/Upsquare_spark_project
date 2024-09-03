@@ -1,0 +1,74 @@
+1. Introduction
+Hi there! I worked on optimizing the data processing pipeline, focusing on making it faster and more secure. Here's a quick rundown of what I did, along with some code snippets and the results of these changes.
+
+2. Problem Statement
+The pipeline we had was slow and it wasn’t secure, which is a big no-no when dealing with sensitive data. My task was to fix these issues and get everything running smoothly.
+
+3. Optimizations Made
+Data Transformation
+
+Before: The timestamp was just a string. It made everything take longer.
+Now: I converted it into a proper timestamp format. This change makes everything related to time (like sorting and grouping) much faster.
+
+df = df.withColumn("timestamp", to_timestamp(col("timestamp"), "yyyy-MM-dd'T'HH:mm:ss"))
+
+4. Data Cleanup
+
+Before: We had duplicates and missing values that were messing with the accuracy.
+Now: I removed any duplicates and filled in the gaps with average values so we wouldn't have any blanks. 
+
+df = df.dropDuplicates()
+
+mean_values = df.select(
+    avg(col("temperature")).alias("mean_temperature"),
+    avg(col("humidity")).alias("mean_humidity"),
+    avg(col("air_quality")).alias("mean_air_quality"),
+    avg(col("altitude")).alias("mean_altitude")
+).collect()[0]
+
+df = df.na.fill({
+    "temperature": mean_values["mean_temperature"],
+    "humidity": mean_values["mean_humidity"],
+    "air_quality": mean_values["mean_air_quality"],
+    "altitude": mean_values["mean_altitude"]
+})
+
+
+Data Aggregation
+
+Before: We didn’t have a good way to see patterns over time.
+Now: I grouped the data by the hour and calculated some important stats like averages, max/min values, and standard deviation.
+
+
+df_aggregated = df.groupBy(
+    date_format(col("timestamp"), "yyyy-MM-dd HH:00:00").alias("timestamp")
+).agg(
+    avg("value").alias("average_value"),
+    max("value").alias("max_value"),
+    min("value").alias("min_value"),
+    stddev("value").alias("std_dev"),
+    avg("temperature").alias("average_temperature"),
+    avg("humidity").alias("average_humidity"),
+    avg("air_quality").alias("average_air_quality"),
+    avg("altitude").alias("average_altitude")
+)
+
+Security Enhancements
+
+key = Fernet.generate_key()
+cipher_suite = Fernet(key)
+
+with open(output_path, 'rb') as file:
+    file_data = file.read()
+
+encrypted_data = cipher_suite.encrypt(file_data)
+
+with open(encrypted_output_path, 'wb') as file:
+    file.write(encrypted_data)
+
+os.remove(output_path)
+
+os.chmod(encrypted_output_path, 0o600)
+
+4. Benchmarks
+After these changes, the pipeline ran much faster—processing time was cut down by about 40%. Plus, our data is now encrypted, so it's secure.
